@@ -41,6 +41,11 @@ contract StakingRewards {
     uint public totalSupply;
     mapping(address => uint) public balanceOf;
 
+    modifier onlyOwner() {
+        require(msg.sender == owner, "not owner");
+        _;
+    }
+
     constructor(address _stakingToken, address _rewardToken) {
         owner = msg.sender;
         stakingToken = IERC20(_stakingToken);
