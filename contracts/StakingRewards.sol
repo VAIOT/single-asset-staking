@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8;
+pragma solidity ^0.8.18;
+
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 interface IERC20 {
     function totalSupply() external view returns (uint);
@@ -25,7 +27,7 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
 }
 
-contract StakingRewards {
+contract StakingRewards is ReentrancyGuard {
     IERC20 public immutable stakingToken;
     IERC20 public immutable rewardsToken;
 
@@ -43,6 +45,8 @@ contract StakingRewards {
     uint public rewardPerTokenStored;
     // Total staked
     uint public totalSupply;
+    // Max amount that people can stake
+    uint public MAX_AMOUNT_STAKE;
 
     // User address => rewardPerTokenStored
     mapping(address => uint) public userRewardPerTokenPaid;
@@ -89,14 +93,22 @@ contract StakingRewards {
             totalSupply;
     }
 
-    function stake(uint _amount) external updateReward(msg.sender) {
+    function stake(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
+        require(
+            balanceOf[msg.sender] + _amount <= MAX_AMOUNT_STAKE,
+            "Too much staked!"
+        );
         stakingToken.transferFrom(msg.sender, address(this), _amount);
         balanceOf[msg.sender] += _amount;
         totalSupply += _amount;
     }
 
-    function withdraw(uint _amount) external updateReward(msg.sender) {
+    function withdraw(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
         balanceOf[msg.sender] -= _amount;
         totalSupply -= _amount;
@@ -110,7 +122,7 @@ contract StakingRewards {
             rewards[_account];
     }
 
-    function getReward() external updateReward(msg.sender) {
+    function withdrawReward() external nonReentrant updateReward(msg.sender) {
         uint reward = rewards[msg.sender];
         if (reward > 0) {
             rewards[msg.sender] = 0;
@@ -124,8 +136,13 @@ contract StakingRewards {
     }
 
     function notifyRewardAmount(
-        uint _amount
+        uint _amount,
+        uint _duration
     ) external onlyOwner updateReward(address(0)) {
+        duration = _duration;
+        finishAt = block.timestamp + duration;
+        updatedAt = block.timestamp;
+
         if (block.timestamp >= finishAt) {
             rewardRate = _amount / duration;
         } else {
@@ -138,12 +155,33 @@ contract StakingRewards {
             rewardRate * duration <= rewardsToken.balanceOf(address(this)),
             "reward amount > balance"
         );
-
-        finishAt = block.timestamp + duration;
-        updatedAt = block.timestamp;
     }
 
     function _min(uint x, uint y) private pure returns (uint) {
         return x <= y ? x : y;
+    }
+
+    function recoverERC20(
+        address tokenAddress,
+        uint256 tokenAmount
+    ) external onlyOwner {
+        require(
+            tokenAddress != address(stakingToken),
+            "Cannot withdraw the staking token"
+        );
+        IERC20(tokenAddress).transfer(owner, tokenAmount);
+    }
+
+    function changeStakeLimit(uint _amount) public onlyOwner {
+        MAX_AMOUNT_STAKE = _amount;
+    }
+
+    function getTokensDepositedForRewards() public view returns (uint) {
+        uint balance = stakingToken.balanceOf(address(this));
+        return balance - totalSupply;
+    }
+
+    function secondsLeftTillNewRewards() public view returns (uint) {
+        return finishAt - block.timestamp;
     }
 }
