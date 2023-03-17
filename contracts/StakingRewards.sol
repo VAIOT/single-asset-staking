@@ -96,16 +96,26 @@ contract StakingRewards is ReentrancyGuard {
             totalSupply;
     }
 
-    function stake(uint _amount) external nonReentrant updateReward(msg.sender) {
+    function stake(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
-        require(balanceOf[msg.sender] + _amount <= MAX_AMOUNT_STAKE, "Too much staked!");
-        require(totalSupply + _amount <= MAX_NUM_OF_TOKENS_IN_POOL, "Maximum number of tokens staked has been reached!");
+        require(
+            balanceOf[msg.sender] + _amount <= MAX_AMOUNT_STAKE,
+            "Too much staked!"
+        );
+        require(
+            totalSupply + _amount <= MAX_NUM_OF_TOKENS_IN_POOL,
+            "Maximum number of tokens staked has been reached!"
+        );
         stakingToken.transferFrom(msg.sender, address(this), _amount);
         balanceOf[msg.sender] += _amount;
         totalSupply += _amount;
     }
 
-    function withdraw(uint _amount) external nonReentrant updateReward(msg.sender) {
+    function withdraw(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
         require(_amount > 0, "amount = 0");
         balanceOf[msg.sender] -= _amount;
         totalSupply -= _amount;
@@ -137,13 +147,16 @@ contract StakingRewards is ReentrancyGuard {
         uint _duration
     ) external onlyOwner updateReward(address(0)) {
         console.log("Block timestamp", block.timestamp);
-       if (duration == 0) {
-           duration = _duration;
-       }   
+        if (duration == 0) {
+            duration = _duration;
+        }
         if (block.timestamp >= finishAt) {
             rewardRate = _amount / _duration;
         } else {
-            console.log("Remaining rewards", (finishAt - block.timestamp) * rewardRate);
+            console.log(
+                "Remaining rewards",
+                (finishAt - block.timestamp) * rewardRate
+            );
             uint remainingRewards = (finishAt - block.timestamp) * rewardRate;
             rewardRate = (_amount + remainingRewards) / duration;
         }
@@ -157,16 +170,20 @@ contract StakingRewards is ReentrancyGuard {
         duration = _duration;
         finishAt = block.timestamp + duration;
         updatedAt = block.timestamp;
-
-        
     }
 
     function _min(uint x, uint y) private pure returns (uint) {
         return x <= y ? x : y;
     }
 
-    function recoverERC20(address tokenAddress, uint256 tokenAmount) external onlyOwner {
-        require(tokenAddress != address(stakingToken), "Cannot withdraw the staking token");
+    function recoverERC20(
+        address tokenAddress,
+        uint256 tokenAmount
+    ) external onlyOwner {
+        require(
+            tokenAddress != address(stakingToken),
+            "Cannot withdraw the staking token"
+        );
         IERC20(tokenAddress).transfer(owner, tokenAmount);
     }
 
@@ -178,12 +195,12 @@ contract StakingRewards is ReentrancyGuard {
         MAX_NUM_OF_TOKENS_IN_POOL = _amount;
     }
 
-    function getTokensDepositedForRewards() public view returns(uint) {
+    function getTokensDepositedForRewards() public view returns (uint) {
         uint balance = stakingToken.balanceOf(address(this));
-        return balance - totalSupply;       
+        return balance - totalSupply;
     }
 
-    function secondsLeftTillNewRewards() public view returns(uint) {
+    function secondsLeftTillNewRewards() public view returns (uint) {
         return finishAt < block.timestamp ? 0 : finishAt - block.timestamp;
     }
 }
