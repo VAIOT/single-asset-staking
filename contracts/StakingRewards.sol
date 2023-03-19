@@ -2,7 +2,6 @@
 pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "hardhat/console.sol";
 
 interface IERC20 {
     function totalSupply() external view returns (uint);
@@ -28,12 +27,19 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
 }
 
+/// @title ERC20 Staking Contract
+/// @author VAIOT team
+/// @notice This contract allows for stake ERC20 tokens and receive ERC20 tokens as rewards
+/// @dev This contract allows for updating the duration of  reward period at any given moment
+
 contract StakingRewards is ReentrancyGuard {
+    // ============= VARIABLES ============
+    // Contract address of the staked token
     IERC20 public immutable stakingToken;
+    // Contract address of the rewards token
     IERC20 public immutable rewardsToken;
-
+    // Address of the owner of the contract
     address public owner;
-
     // Duration of rewards to be paid out (in seconds)
     uint public duration;
     // Timestamp of when the rewards finish
@@ -51,6 +57,7 @@ contract StakingRewards is ReentrancyGuard {
     // The maximum amount of tokens in the staking pool
     uint public MAX_NUM_OF_TOKENS_IN_POOL;
 
+    // ============= MAPPINGS ============
     // User address => rewardPerTokenStored
     mapping(address => uint) public userRewardPerTokenPaid;
     // User address => rewards to be claimed
@@ -58,16 +65,23 @@ contract StakingRewards is ReentrancyGuard {
     // User address => staked amount
     mapping(address => uint) public balanceOf;
 
+    /// @param _stakingToken - address of the staking token
+    /// @param _rewardToken - address of the reward token
     constructor(address _stakingToken, address _rewardToken) {
         owner = msg.sender;
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardToken);
     }
 
+    // ============= MODIFIERS ============
+
     modifier onlyOwner() {
         require(msg.sender == owner, "not authorized");
         _;
     }
+
+    /// @notice Modifier that updates rewardPerTokenStored and userRewardPerTokenPaid
+    /// @param _account - address of the account that we wish to update rewards for
 
     modifier updateReward(address _account) {
         rewardPerTokenStored = rewardPerToken();
@@ -81,9 +95,9 @@ contract StakingRewards is ReentrancyGuard {
         _;
     }
 
-    function lastTimeRewardApplicable() public view returns (uint) {
-        return _min(finishAt, block.timestamp);
-    }
+    // ============= MAIN FUNCTIONS ============
+
+    /// @notice Function that allows to calculate rewardPerTokenStored
 
     function rewardPerToken() public view returns (uint) {
         if (totalSupply == 0) {
@@ -96,6 +110,10 @@ contract StakingRewards is ReentrancyGuard {
             totalSupply;
     }
 
+    /// @notice Function that allows users to stake their tokens
+    /// @param _amount - amount of tokens to stake in WEI
+    /// @dev remember to approve the token first from the frontend
+    /// @dev when users stake tokens updateReward modifier is fired for them
     function stake(
         uint _amount
     ) external nonReentrant updateReward(msg.sender) {
@@ -113,6 +131,9 @@ contract StakingRewards is ReentrancyGuard {
         totalSupply += _amount;
     }
 
+    /// @notice Function that allows users to withdraw their tokens
+    /// @param _amount - amount of tokens to withdraw in WEI
+    /// @dev when users withdraw tokens updateReward modifier is fired for them
     function withdraw(
         uint _amount
     ) external nonReentrant updateReward(msg.sender) {
@@ -122,13 +143,8 @@ contract StakingRewards is ReentrancyGuard {
         stakingToken.transfer(msg.sender, _amount);
     }
 
-    function earned(address _account) public view returns (uint) {
-        return
-            ((balanceOf[_account] *
-                (rewardPerToken() - userRewardPerTokenPaid[_account])) / 1e18) +
-            rewards[_account];
-    }
-
+    /// @notice Function that allows users to withdraw their winnings
+    /// @dev when users withdraw rewards updateReward modifier is fired for them
     function withdrawReward() external nonReentrant updateReward(msg.sender) {
         uint reward = rewards[msg.sender];
         if (reward > 0) {
@@ -137,26 +153,22 @@ contract StakingRewards is ReentrancyGuard {
         }
     }
 
-    function setRewardsDuration(uint _duration) external onlyOwner {
-        require(finishAt < block.timestamp, "reward duration not finished");
-        duration = _duration;
-    }
-
+    /// @notice Function that allows the owner to specify the rewards and duration for the next reward period
+    /// @param _amount - amount of tokens that will be given out as rewards during the given period
+    /// @param _duration - duration of the next reward period in seconds
+    /// @dev this function is a modified version of the Synthetix ERC20 Staking implementation - it allows
+    /// @dev the owner to change the duration before the last one ends - keep in mind in the next period it will give out
+    /// @dev the _amount + remaining rewards from the last period that were not given out
     function notifyRewardAmount(
         uint _amount,
         uint _duration
     ) external onlyOwner updateReward(address(0)) {
-        console.log("Block timestamp", block.timestamp);
         if (duration == 0) {
             duration = _duration;
         }
         if (block.timestamp >= finishAt) {
             rewardRate = _amount / _duration;
         } else {
-            console.log(
-                "Remaining rewards",
-                (finishAt - block.timestamp) * rewardRate
-            );
             uint remainingRewards = (finishAt - block.timestamp) * rewardRate;
             rewardRate = (_amount + remainingRewards) / duration;
         }
@@ -172,35 +184,67 @@ contract StakingRewards is ReentrancyGuard {
         updatedAt = block.timestamp;
     }
 
-    function _min(uint x, uint y) private pure returns (uint) {
-        return x <= y ? x : y;
-    }
-
-    function recoverERC20(
-        address tokenAddress,
-        uint256 tokenAmount
-    ) external onlyOwner {
-        require(
-            tokenAddress != address(stakingToken),
-            "Cannot withdraw the staking token"
-        );
-        IERC20(tokenAddress).transfer(owner, tokenAmount);
-    }
-
+    /// @notice Function that allows the owner to change the user staking limit
+    /// @param _amount - the maximum amount a person can stake at once in WEI
     function changeStakeLimit(uint _amount) public onlyOwner {
         MAX_AMOUNT_STAKE = _amount;
     }
 
+    /// @notice Function that allows the owner to change the pool staking limit
+    /// @param _amount - the maximum amount of tokens that the whole staking pool can stake in WEI
     function changePoolLimit(uint _amount) public onlyOwner {
         MAX_NUM_OF_TOKENS_IN_POOL = _amount;
     }
 
-    function getTokensDepositedForRewards() public view returns (uint) {
-        uint balance = stakingToken.balanceOf(address(this));
-        return balance - totalSupply;
+    /// @notice Function that allows the owner to return ERC20 tokens that were sent to the contract by accident
+    /// @param _tokenAddress - ERC20 address of the token
+    /// @param _tokenAmount - amount of tokens
+    function recoverERC20(
+        address _tokenAddress,
+        uint256 _tokenAmount
+    ) external onlyOwner {
+        require(
+            _tokenAddress != address(stakingToken),
+            "Cannot withdraw the staking token"
+        );
+        IERC20(_tokenAddress).transfer(owner, _tokenAmount);
+    }
+
+    // ============= UTILITY FUNCTIONS ============
+
+    function _min(uint x, uint y) private pure returns (uint) {
+        return x <= y ? x : y;
+    }
+
+    function lastTimeRewardApplicable() public view returns (uint) {
+        return _min(finishAt, block.timestamp);
+    }
+
+    // ============= GETTER FUNCTIONS ============
+
+    function getRewardRate() public view returns (uint) {
+        return rewardRate;
+    }
+
+    function getTotalSupply() public view returns (uint) {
+        return totalSupply;
     }
 
     function secondsLeftTillNewRewards() public view returns (uint) {
         return finishAt < block.timestamp ? 0 : finishAt - block.timestamp;
+    }
+
+    function earned(address _account) public view returns (uint) {
+        return
+            ((balanceOf[_account] *
+                (rewardPerToken() - userRewardPerTokenPaid[_account])) / 1e18) +
+            rewards[_account];
+    }
+
+    /// @notice This function does not take unclaimed rewards under consideration
+
+    function getTokensDepositedForRewards() public view returns (uint) {
+        uint balance = stakingToken.balanceOf(address(this));
+        return balance - totalSupply;
     }
 }
