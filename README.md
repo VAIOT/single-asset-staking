@@ -5,7 +5,7 @@ This repo is for VAIOT's official single asset staking smart contract.
 This is a hardhat repository. Before doing anything run
 
 ```bash
-yarn
+yarn install
 ```
 
 to install all the dependencies.
