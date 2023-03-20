@@ -247,4 +247,24 @@ contract StakingRewards is ReentrancyGuard {
         uint balance = stakingToken.balanceOf(address(this));
         return balance - totalSupply;
     }
+
+    function getStakeLimit() public view returns (uint) {
+        return MAX_AMOUNT_STAKE;
+    }
+
+    function getPoolLimit() public view returns (uint) {
+        return MAX_NUM_OF_TOKENS_IN_POOL;
+    }
+
+    function getDuration() public view returns (uint) {
+        return duration;
+    }
+
+    function getFinishAt() public view returns (uint) {
+        return finishAt;
+    }
+
+    function getUpdatedAt() public view returns (uint) {
+        return updatedAt;
+    }
 }
