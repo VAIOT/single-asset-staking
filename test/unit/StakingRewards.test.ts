@@ -119,4 +119,12 @@ describe("StakingRewards", function () {
       assert.equal(rewardRate, "24");
     });
   });
+  describe("stake", () => {
+    beforeEach(async () => {
+      await mockToken.mint(deployer.address, "10000");
+      await mockToken.mint(player.address, "1000");
+      await mockToken.transfer(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+    });
+  });
 });
