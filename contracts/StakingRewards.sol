@@ -28,7 +28,7 @@ interface IERC20 {
 }
 
 /// @title ERC20 Staking Contract
-/// @author VAIOT team
+/// @author VAIOT team.
 /// @notice This contract allows for stake ERC20 tokens and receive ERC20 tokens as rewards
 /// @dev This contract allows for updating the duration of  reward period at any given moment
 
