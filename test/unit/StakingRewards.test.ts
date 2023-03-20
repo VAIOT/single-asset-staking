@@ -103,5 +103,20 @@ describe("StakingRewards", function () {
       const duration = (await stakingRewards.getDuration()).toString();
       assert.equal(duration, "100");
     });
+    // NOTE: We mine 52 blocks to mock 60 seconds passing by
+    // because we're doing 8 transactions, and each one of them add 1 second
+    // that's why 52+8 transactions = 60 blocks (seconds)
+    it("correctly sets up reward rate after resetting the lottery 2 times", async () => {
+      await mockToken.transfer(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await mine(48);
+      await mockToken.transfer(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await mine(4);
+      await mockToken.transfer(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      const rewardRate = (await stakingRewards.getRewardRate()).toString();
+      assert.equal(rewardRate, "24");
+    });
   });
 });
