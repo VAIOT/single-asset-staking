@@ -237,7 +237,7 @@ contract StakingRewards is ReentrancyGuard {
         return totalSupply;
     }
 
-    function secondsLeftTillNewRewards() public view returns (uint) {
+    function secondsLeftTillPoolEnds() public view returns (uint) {
         return finishAt < block.timestamp ? 0 : finishAt - block.timestamp;
     }
 
