@@ -9,12 +9,15 @@ describe("StakingRewards", function () {
   let stakingRewards: StakingRewards;
   let stakingPlayer: StakingRewards;
   let stakingPlayerTwo: StakingRewards;
+  let stakingPlayerThree: StakingRewards;
   let mockToken: MockToken;
   let mockTokenPlayer: MockToken;
   let mockTokenPlayerTwo: MockToken;
+  let mockTokenPlayerThree: MockToken;
   let deployer: SignerWithAddress;
   let player: SignerWithAddress;
   let playerTwo: SignerWithAddress;
+  let playerThree: SignerWithAddress;
   beforeEach(async () => {
     if (!developmentChains.includes(network.name)) {
       throw "You need to be on a development chain to run tests!";
@@ -23,13 +26,16 @@ describe("StakingRewards", function () {
     deployer = accounts[0];
     player = accounts[1];
     playerTwo = accounts[2];
+    playerThree = accounts[3];
     await deployments.fixture(["all"]);
     stakingRewards = await ethers.getContract("StakingRewards");
     mockToken = await ethers.getContract("MockToken");
     stakingPlayer = stakingRewards.connect(player);
     stakingPlayerTwo = stakingRewards.connect(playerTwo);
+    stakingPlayerThree = stakingRewards.connect(playerThree);
     mockTokenPlayer = mockToken.connect(player);
     mockTokenPlayerTwo = mockToken.connect(playerTwo);
+    mockTokenPlayerThree = mockToken.connect(playerThree);
   });
 
   describe("constructor", function () {
@@ -278,6 +284,50 @@ describe("StakingRewards", function () {
         parseInt(begginingContractBalance) + 400 + 100 - 120,
         parseInt(endingContractBalance)
       );
+    });
+  });
+  describe("earned", () => {
+    beforeEach(async () => {
+      await mockToken.mint(deployer.address, "10000");
+      await mockToken.mint(player.address, "1000");
+      await mockToken.mint(playerTwo.address, "10000");
+      await mockToken.mint(playerThree.address, "10000");
+      await mockToken.approve(stakingRewards.address, "10000");
+      await mockTokenPlayer.approve(stakingRewards.address, "1000");
+      await mockTokenPlayerTwo.approve(stakingRewards.address, "1000");
+      await mockTokenPlayerThree.approve(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await stakingRewards.changeStakeLimit("500");
+      await stakingRewards.changePoolLimit("900");
+    });
+    it("properly calculates rewards with one, two and three stakers", async () => {
+      // one staker
+      await stakingPlayer.stake("400");
+      await mine(10);
+      const reward = (await stakingRewards.earned(player.address)).toString();
+      assert.equal(reward, "100");
+      // adding another staker after 10 seconds
+      await stakingPlayerTwo.stake("100");
+      await mine(10); // another 10 seconds passing
+      const rewardAfter21Seconds = (
+        await stakingRewards.earned(player.address)
+      ).toString();
+      assert.equal(rewardAfter21Seconds, "190"); // 110 reward from 11 seconds * 10 and 80 tokens from 10 * 8
+      // adding a third staker after 11 seconds of one staker and 11 seconds of 2 stakers
+      await stakingPlayerThree.stake("100");
+      await mine(10);
+      const rewardAfter33Seconds = (
+        await stakingRewards.earned(player.address)
+      ).toString();
+      assert.equal(rewardAfter33Seconds, "264"); // 190 + 8 + 10 * 4/6 * 10 rounded down
+    });
+    it("properly calculates rewards after ending the pool reward early", async () => {
+      await stakingPlayer.stake("400");
+      await mine(10); // 10 seconds pass of rewards for one staker + 1 second of no stakers
+      await stakingRewards.notifyRewardAmount("1000", "100"); // we start another reward pool
+      await mine(10);
+      const reward = (await stakingRewards.earned(player.address)).toString();
+      assert.equal(reward, "290"); // 100 tokens from the first pool + 19 * 10 from the second pool
     });
   });
 });
