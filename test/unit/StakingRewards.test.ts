@@ -177,4 +177,58 @@ describe("StakingRewards", function () {
       assert.equal((await stakingRewards.totalSupply()).toString(), "800");
     });
   });
+  describe("withdraw", () => {
+    beforeEach(async () => {
+      await mockToken.mint(deployer.address, "10000");
+      await mockToken.mint(player.address, "1000");
+      await mockToken.mint(playerTwo.address, "10000");
+      await mockToken.approve(stakingRewards.address, "1000");
+      await mockTokenPlayerTwo.approve(stakingRewards.address, "1000");
+      await mockTokenPlayer.approve(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await stakingRewards.changeStakeLimit("500");
+      await stakingRewards.changePoolLimit("900");
+    });
+    it("reverts if user wants to withdraw 0 tokens", async () => {
+      await expect(stakingPlayer.withdraw(0)).to.be.revertedWith("amount = 0");
+    });
+    it("correctly updates the balance of the staker", async () => {
+      await stakingPlayer.stake("500");
+      await stakingPlayer.withdraw("100");
+      const balanceOfUser = (
+        await stakingRewards.balanceOf(player.address)
+      ).toString();
+      assert.equal(balanceOfUser, "400");
+    });
+    it("correctly updates the total supply of the contract", async () => {
+      await stakingPlayer.stake("500");
+      assert.equal((await stakingRewards.totalSupply()).toString(), "500");
+      await stakingPlayer.withdraw("100");
+      assert.equal((await stakingRewards.totalSupply()).toString(), "400");
+    });
+    it("correctly sends the staked tokens to the user", async () => {
+      await stakingPlayer.stake("500");
+      const begginingPlayerBalance = (
+        await mockToken.balanceOf(player.address)
+      ).toString();
+      const begginingContractBalance = (
+        await mockToken.balanceOf(stakingRewards.address)
+      ).toString();
+      await stakingPlayer.withdraw("100");
+      const endingPlayerBalance = (
+        await mockToken.balanceOf(player.address)
+      ).toString();
+      const endingContractBalance = (
+        await mockToken.balanceOf(stakingRewards.address)
+      ).toString();
+      assert.equal(
+        parseInt(begginingPlayerBalance) + 100,
+        parseInt(endingPlayerBalance)
+      );
+      assert.equal(
+        parseInt(begginingContractBalance) - 100,
+        parseInt(endingContractBalance)
+      );
+    });
+  });
 });
