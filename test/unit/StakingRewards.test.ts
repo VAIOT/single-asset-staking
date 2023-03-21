@@ -231,4 +231,53 @@ describe("StakingRewards", function () {
       );
     });
   });
+  describe("withdrawReward", () => {
+    beforeEach(async () => {
+      await mockToken.mint(deployer.address, "10000");
+      await mockToken.mint(player.address, "1000");
+      await mockToken.mint(playerTwo.address, "10000");
+      await mockToken.approve(stakingRewards.address, "1000");
+      await mockTokenPlayerTwo.approve(stakingRewards.address, "1000");
+      await mockTokenPlayer.approve(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await stakingRewards.changeStakeLimit("500");
+      await stakingRewards.changePoolLimit("900");
+    });
+    it("correctly sets rewards of staker to zero", async () => {
+      await stakingPlayer.stake("400");
+      await mine(10);
+      await stakingPlayer.withdrawReward();
+      const reward = (await stakingRewards.rewards(player.address)).toString();
+      assert.equal(reward, "0");
+    });
+
+    it("correctly withdraws rewards after 10 seconds", async () => {
+      const begginingPlayerBalance = (
+        await mockToken.balanceOf(player.address)
+      ).toString();
+      const begginingContractBalance = (
+        await mockToken.balanceOf(stakingRewards.address)
+      ).toString();
+      await stakingPlayer.stake("400");
+      await mine(10);
+      await stakingPlayer.stake("100");
+      const reward = (await stakingRewards.rewards(player.address)).toString();
+      assert.equal(reward, "110"); // 11 blocks have passed so 11*10 = 110
+      await stakingPlayer.withdrawReward();
+      const endingContractBalance = (
+        await mockToken.balanceOf(stakingRewards.address)
+      ).toString();
+      const endingPlayerBalance = (
+        await mockToken.balanceOf(player.address)
+      ).toString();
+      assert.equal(
+        parseInt(begginingPlayerBalance) - 400 - 100 + 120,
+        parseInt(endingPlayerBalance)
+      ); // we add 120 because withdrawingRewards is an additional block
+      assert.equal(
+        parseInt(begginingContractBalance) + 400 + 100 - 120,
+        parseInt(endingContractBalance)
+      );
+    });
+  });
 });
