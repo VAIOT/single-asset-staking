@@ -177,12 +177,12 @@ contract StakingRewards is ReentrancyGuard {
             rewardRate = _amount / _duration;
         } else {
             uint remainingRewards = (finishAt - block.timestamp) * rewardRate;
-            rewardRate = (_amount + remainingRewards) / duration;
+            rewardRate = (_amount + remainingRewards) / _duration;
         }
 
         require(rewardRate > 0, "reward rate = 0");
         require(
-            rewardRate * duration <= rewardsToken.balanceOf(address(this)),
+            rewardRate * _duration <= rewardsToken.balanceOf(address(this)),
             "reward amount > balance"
         );
 
