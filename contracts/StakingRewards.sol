@@ -34,6 +34,7 @@ interface IERC20 {
 
 contract StakingRewards is ReentrancyGuard {
     // ============= VARIABLES ============
+
     // Contract address of the staked token
     IERC20 public immutable stakingToken;
     // Contract address of the rewards token
@@ -56,6 +57,8 @@ contract StakingRewards is ReentrancyGuard {
     uint public MAX_AMOUNT_STAKE;
     // The maximum amount of tokens in the staking pool
     uint public MAX_NUM_OF_TOKENS_IN_POOL;
+    // Grace period duration for handling withdrawals
+    uint public GRACE_PERIOD;
 
     // ============= MAPPINGS ============
     // User address => rewardPerTokenStored
@@ -64,13 +67,19 @@ contract StakingRewards is ReentrancyGuard {
     mapping(address => uint) public rewards;
     // User address => staked amount
     mapping(address => uint) public balanceOf;
+    // User address => timestamp when the withdrawal has been initiated
+    mapping(address => uint) public withdrawalInitiated;
 
     /// @param _stakingToken - address of the staking token
     /// @param _rewardToken - address of the reward token
+
     constructor(address _stakingToken, address _rewardToken) {
         owner = msg.sender;
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardToken);
+        MAX_AMOUNT_STAKE = 100000000000000000000000; // 100 000 tokens
+        MAX_NUM_OF_TOKENS_IN_POOL = 20000000000000000000000000; // 20 milion tokens
+        GRACE_PERIOD = 604800; // 604 800 seconds = 1 week
     }
 
     // ============= MODIFIERS ============
@@ -97,6 +106,45 @@ contract StakingRewards is ReentrancyGuard {
 
     // ============= MAIN FUNCTIONS ============
 
+    /// @notice Function that allows the user to initialize the withdrawal
+
+    function initializeWithdrawal()
+        external
+        nonReentrant
+        updateReward(msg.sender)
+    {
+        require(balanceOf[msg.sender] > 0, "Nothing to withdraw");
+        require(
+            withdrawalInitiated[msg.sender] == 0,
+            "Withdrawal already initiated"
+        );
+        withdrawalInitiated[msg.sender] = block.timestamp;
+    }
+
+    /// @notice Function that allows users to claim their tokens after the grace period has ended
+    /// @param _amount - amount of tokens to withdraw
+
+    function claimWithdrawal(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
+        require(
+            withdrawalInitiated[msg.sender] > 0,
+            "Withdrawal not initiated"
+        );
+        require(
+            block.timestamp >= withdrawalInitiated[msg.sender] + GRACE_PERIOD,
+            "Grace period not yet passed"
+        );
+        require(balanceOf[msg.sender] > 0, "Nothing to withdraw");
+        require(_amount > 0, "Withdrawal amount has to be greater than zero");
+        require(balanceOf[msg.sender] >= _amount, "Withdrawal is too high!");
+
+        balanceOf[msg.sender] -= _amount;
+        totalSupply -= _amount;
+        withdrawalInitiated[msg.sender] = 0;
+        stakingToken.transfer(msg.sender, _amount);
+    }
+
     /// @notice Function that allows to calculate rewardPerTokenStored
 
     function rewardPerToken() public view returns (uint) {
@@ -114,6 +162,7 @@ contract StakingRewards is ReentrancyGuard {
     /// @param _amount - amount of tokens to stake in WEI
     /// @dev remember to approve the token first from the frontend
     /// @dev when users stake tokens updateReward modifier is fired for them
+
     function stake(
         uint _amount
     ) external nonReentrant updateReward(msg.sender) {
@@ -131,20 +180,9 @@ contract StakingRewards is ReentrancyGuard {
         totalSupply += _amount;
     }
 
-    /// @notice Function that allows users to withdraw their tokens
-    /// @param _amount - amount of tokens to withdraw in WEI
-    /// @dev when users withdraw tokens updateReward modifier is fired for them
-    function withdraw(
-        uint _amount
-    ) external nonReentrant updateReward(msg.sender) {
-        require(_amount > 0, "amount = 0");
-        balanceOf[msg.sender] -= _amount;
-        totalSupply -= _amount;
-        stakingToken.transfer(msg.sender, _amount);
-    }
-
     /// @notice Function that allows users to withdraw their winnings
     /// @dev when users withdraw rewards updateReward modifier is fired for them
+
     function withdrawReward() external nonReentrant updateReward(msg.sender) {
         uint reward = rewards[msg.sender];
         if (reward > 0) {
@@ -159,10 +197,11 @@ contract StakingRewards is ReentrancyGuard {
     /// @dev this function is a modified version of the Synthetix ERC20 Staking implementation - it allows
     /// @dev the owner to change the duration before the last one ends - keep in mind in the next period it will give out
     /// @dev the _amount + remaining rewards from the last period that were not given out
+
     function notifyRewardAmount(
         uint _amount,
         uint _duration
-    ) external payable onlyOwner updateReward(address(0)) {
+    ) external onlyOwner updateReward(address(0)) {
         require(_amount > 0, "amount must be greater than 0");
         bool success = rewardsToken.transferFrom(
             msg.sender,
@@ -193,19 +232,29 @@ contract StakingRewards is ReentrancyGuard {
 
     /// @notice Function that allows the owner to change the user staking limit
     /// @param _amount - the maximum amount a person can stake at once in WEI
+
     function changeStakeLimit(uint _amount) public onlyOwner {
         MAX_AMOUNT_STAKE = _amount;
     }
 
     /// @notice Function that allows the owner to change the pool staking limit
     /// @param _amount - the maximum amount of tokens that the whole staking pool can stake in WEI
+
     function changePoolLimit(uint _amount) public onlyOwner {
         MAX_NUM_OF_TOKENS_IN_POOL = _amount;
+    }
+
+    /// @notice Function that allows the owner to change the grace period
+    /// @param _newGracePeriod - the new grace period in seconds
+
+    function changeGracePeriod(uint _newGracePeriod) public onlyOwner {
+        GRACE_PERIOD = _newGracePeriod;
     }
 
     /// @notice Function that allows the owner to return ERC20 tokens that were sent to the contract by accident
     /// @param _tokenAddress - ERC20 address of the token
     /// @param _tokenAmount - amount of tokens
+
     function recoverERC20(
         address _tokenAddress,
         uint256 _tokenAmount
@@ -215,6 +264,17 @@ contract StakingRewards is ReentrancyGuard {
             "Cannot withdraw the staking token"
         );
         IERC20(_tokenAddress).transfer(owner, _tokenAmount);
+    }
+
+    /// @notice Function that allows you to change the ownership of the contract
+    /// @param _newOwner - address of the new owner of the contract
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(
+            _newOwner != address(0),
+            "New owner cannot be the zero address!"
+        );
+        owner = _newOwner;
     }
 
     // ============= UTILITY FUNCTIONS ============
@@ -273,5 +333,14 @@ contract StakingRewards is ReentrancyGuard {
 
     function getUpdatedAt() public view returns (uint) {
         return updatedAt;
+    }
+
+    function getTimeLeftToWithdraw(address _addr) public view returns (uint) {
+        uint endingTimestamp = withdrawalInitiated[_addr];
+        if (endingTimestamp + GRACE_PERIOD > block.timestamp) {
+            return endingTimestamp + GRACE_PERIOD - block.timestamp;
+        } else {
+            return 0;
+        }
     }
 }
