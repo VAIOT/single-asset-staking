@@ -183,7 +183,7 @@ describe("StakingRewards", function () {
       assert.equal((await stakingRewards.totalSupply()).toString(), "800");
     });
   });
-  describe("withdraw", () => {
+  describe("initializeWithdrawal", () => {
     beforeEach(async () => {
       await mockToken.mint(deployer.address, "10000");
       await mockToken.mint(player.address, "1000");
@@ -195,46 +195,84 @@ describe("StakingRewards", function () {
       await stakingRewards.changeStakeLimit("500");
       await stakingRewards.changePoolLimit("900");
     });
-    it("reverts if user wants to withdraw 0 tokens", async () => {
-      await expect(stakingPlayer.withdraw(0)).to.be.revertedWith("amount = 0");
-    });
-    it("correctly updates the balance of the staker", async () => {
-      await stakingPlayer.stake("500");
-      await stakingPlayer.withdraw("100");
-      const balanceOfUser = (
-        await stakingRewards.balanceOf(player.address)
-      ).toString();
-      assert.equal(balanceOfUser, "400");
-    });
-    it("correctly updates the total supply of the contract", async () => {
-      await stakingPlayer.stake("500");
-      assert.equal((await stakingRewards.totalSupply()).toString(), "500");
-      await stakingPlayer.withdraw("100");
-      assert.equal((await stakingRewards.totalSupply()).toString(), "400");
-    });
-    it("correctly sends the staked tokens to the user", async () => {
-      await stakingPlayer.stake("500");
-      const begginingPlayerBalance = (
-        await mockToken.balanceOf(player.address)
-      ).toString();
-      const begginingContractBalance = (
-        await mockToken.balanceOf(stakingRewards.address)
-      ).toString();
-      await stakingPlayer.withdraw("100");
-      const endingPlayerBalance = (
-        await mockToken.balanceOf(player.address)
-      ).toString();
-      const endingContractBalance = (
-        await mockToken.balanceOf(stakingRewards.address)
-      ).toString();
-      assert.equal(
-        parseInt(begginingPlayerBalance) + 100,
-        parseInt(endingPlayerBalance)
+    it("reverts if user does not have any tokens to withdraw", async () => {
+      await expect(stakingPlayer.initializeWithdrawal()).to.be.revertedWith(
+        "Nothing to withdraw"
       );
-      assert.equal(
-        parseInt(begginingContractBalance) - 100,
-        parseInt(endingContractBalance)
+    });
+    it("reverts if withdrawal has already been initiated", async () => {
+      await stakingPlayer.stake("100");
+      await stakingPlayer.initializeWithdrawal();
+      await expect(stakingPlayer.initializeWithdrawal()).to.be.revertedWith(
+        "Withdrawal already initiated"
       );
+    });
+    it("correctly sets up the timestamp for the withdrawal", async () => {
+      await stakingPlayer.stake("100");
+      await stakingPlayer.initializeWithdrawal();
+      const timestamp = await stakingRewards.withdrawalInitiated(
+        playerTwo.address
+      );
+      assert.equal(timestamp.toString(), "0");
+    });
+  });
+  describe("claimWithdrawal", () => {
+    beforeEach(async () => {
+      await mockToken.mint(deployer.address, "10000");
+      await mockToken.mint(player.address, "1000");
+      await mockToken.mint(playerTwo.address, "10000");
+      await mockToken.approve(stakingRewards.address, "1000");
+      await mockTokenPlayerTwo.approve(stakingRewards.address, "1000");
+      await mockTokenPlayer.approve(stakingRewards.address, "1000");
+      await stakingRewards.notifyRewardAmount("1000", "100");
+      await stakingPlayer.stake("100");
+    });
+    it("Reverts if withdrawal has not been initiated", async () => {
+      await expect(stakingPlayer.claimWithdrawal("100")).to.be.revertedWith(
+        "Withdrawal not initiated"
+      );
+    });
+    it("Reverts if grace period has not yet passed", async () => {
+      await stakingPlayer.initializeWithdrawal();
+      await expect(stakingPlayer.claimWithdrawal("100")).to.be.revertedWith(
+        "Grace period not yet passed"
+      );
+    });
+    it("Reverts if want to withdraw too many tokens", async () => {
+      await stakingPlayer.initializeWithdrawal();
+      await mine(20000000);
+      await expect(stakingPlayer.claimWithdrawal("200000")).to.be.revertedWith(
+        "Withdrawal is too high!"
+      );
+    });
+    it("Even with one second left you still can not withdraw the money", async () => {
+      await stakingPlayer.initializeWithdrawal();
+      await mine(604798); // 1 week without 1 second (1 transaction has been made so i have to mine -1 block)
+      await expect(stakingPlayer.claimWithdrawal("100")).to.be.revertedWith(
+        "Grace period not yet passed"
+      );
+    });
+    it("correctly updates the balance of staker, totalSupply, withdrawalInitiated after withdrawing", async () => {
+      await stakingPlayer.initializeWithdrawal();
+      await mine(604800);
+      await stakingPlayer.claimWithdrawal("100");
+      const supply = await stakingPlayer.totalSupply();
+      const balance = await stakingPlayer.balanceOf(player.address);
+      const withdrawalInitiated = await stakingPlayer.withdrawalInitiated(
+        player.address
+      );
+      assert.equal(supply.toString(), "0");
+      assert.equal(balance.toString(), "0");
+      assert.equal(withdrawalInitiated.toString(), "0");
+    });
+    it("correctly updates the balance of the staker after withdrawing", async () => {
+      await stakingPlayer.initializeWithdrawal();
+      await mine(604800);
+      await stakingPlayer.claimWithdrawal("100");
+      const balancePlayer = await mockTokenPlayer.balanceOf(player.address);
+      const balanceContract = await mockToken.balanceOf(stakingRewards.address);
+      assert.equal(balancePlayer.toString(), "1000");
+      assert.equal(balanceContract.toString(), "1000"); // 1000 tokens that we deposited for rewards
     });
   });
   describe("withdrawReward", () => {
