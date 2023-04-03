@@ -59,6 +59,10 @@ contract StakingRewards is ReentrancyGuard {
     uint public MAX_NUM_OF_TOKENS_IN_POOL;
     // Grace period duration for handling withdrawals
     uint public GRACE_PERIOD;
+    // Fee collecting address from the "withdraw immediately" button
+    address public FEE_COLLECTING_WALLET;
+    // Fee amount as a intenger number (ex. 10% = 10)
+    uint public FEE_PERCENTAGE;
 
     // ============= MAPPINGS ============
     // User address => rewardPerTokenStored
@@ -73,13 +77,19 @@ contract StakingRewards is ReentrancyGuard {
     /// @param _stakingToken - address of the staking token
     /// @param _rewardToken - address of the reward token
 
-    constructor(address _stakingToken, address _rewardToken) {
+    constructor(
+        address _stakingToken,
+        address _rewardToken,
+        address _feeAddress
+    ) {
         owner = msg.sender;
         stakingToken = IERC20(_stakingToken);
         rewardsToken = IERC20(_rewardToken);
         MAX_AMOUNT_STAKE = 100000000000000000000000; // 100 000 tokens
         MAX_NUM_OF_TOKENS_IN_POOL = 20000000000000000000000000; // 20 milion tokens
         GRACE_PERIOD = 604800; // 604 800 seconds = 1 week
+        FEE_COLLECTING_WALLET = _feeAddress;
+        FEE_PERCENTAGE = 10;
     }
 
     // ============= MODIFIERS ============
@@ -143,6 +153,33 @@ contract StakingRewards is ReentrancyGuard {
         totalSupply -= _amount;
         withdrawalInitiated[msg.sender] = 0;
         stakingToken.transfer(msg.sender, _amount);
+    }
+
+    /// @notice Function that allows the user to withdraw immediately with a 10% fee
+    /// @param _amount - amount the tokens to withdraw
+
+    function withdrawImmediately(
+        uint _amount
+    ) external nonReentrant updateReward(msg.sender) {
+        require(balanceOf[msg.sender] > 0, "Nothing to withdraw");
+        require(_amount > 0, "Withdrawal amount has to be greater than zero");
+        require(balanceOf[msg.sender] >= _amount, "Withdrawal is too high!");
+        require(
+            withdrawalInitiated[msg.sender] == 0,
+            "Withdrawal already initiated"
+        );
+
+        balanceOf[msg.sender] -= _amount;
+        totalSupply -= _amount;
+        withdrawalInitiated[msg.sender] = 0;
+        stakingToken.transfer(
+            FEE_COLLECTING_WALLET,
+            (_amount * FEE_PERCENTAGE) / 100
+        );
+        stakingToken.transfer(
+            msg.sender,
+            (_amount * (100 - FEE_PERCENTAGE)) / 100
+        );
     }
 
     /// @notice Function that allows to calculate rewardPerTokenStored
@@ -249,6 +286,20 @@ contract StakingRewards is ReentrancyGuard {
 
     function changeGracePeriod(uint _newGracePeriod) public onlyOwner {
         GRACE_PERIOD = _newGracePeriod;
+    }
+
+    /// @notice Function that allows the owner to change the fee collecting wallet
+    /// @param _newWallet - new wallet that will collect fees
+
+    function changeFeeCollectingWallet(address _newWallet) public onlyOwner {
+        FEE_COLLECTING_WALLET = _newWallet;
+    }
+
+    /// @notice Function that allows the owner to change the amount of fees collected
+    /// @param _amount - new amount of fees to collect
+
+    function changeFeeAmount(uint _amount) public onlyOwner {
+        FEE_PERCENTAGE = _amount;
     }
 
     /// @notice Function that allows the owner to return ERC20 tokens that were sent to the contract by accident
