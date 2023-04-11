@@ -11,20 +11,23 @@ const deployStakingContract: DeployFunction = async function (
   const { deployer } = await getNamedAccounts();
   const chainId = network.config.chainId;
   let tokenAddress: string;
+  let feeAddress: string;
 
   if (chainId === 31337 || chainId === 80001) {
     log("Test network detected!");
     const mockToken = await deployments.get("MockToken");
     tokenAddress = mockToken.address;
+    feeAddress = deployer;
   } else {
     tokenAddress = networkConfig[network.name].stakingContractAddress!;
+    feeAddress = networkConfig[network.name].feeCollectingAddress!;
   }
 
   log("----------------------------------------------------");
   log("Deploying Staking Contract and waiting for confirmations...");
   const stakingContract = await deploy("StakingRewards", {
     from: deployer,
-    args: [tokenAddress, tokenAddress],
+    args: [tokenAddress, tokenAddress, feeAddress],
     log: true,
     waitConfirmations: networkConfig[network.name].blockConfirmations || 0,
   });
@@ -34,7 +37,11 @@ const deployStakingContract: DeployFunction = async function (
     !developmentChains.includes(network.name) &&
     process.env.POLYGONSCAN_API_KEY
   ) {
-    await verify(stakingContract.address, [tokenAddress, tokenAddress]);
+    await verify(stakingContract.address, [
+      tokenAddress,
+      tokenAddress,
+      feeAddress,
+    ]);
   }
 };
 

@@ -33,6 +33,7 @@ const config: HardhatUserConfig = {
       url: POLYGON_RPC_URL,
       accounts: [PRIVATE_KEY],
       chainId: 137,
+      gasPrice: 150000000000,
     },
     mumbai: {
       url: MUMBAI_RPC_URL,
