@@ -21,6 +21,7 @@ const MUMBAI_RPC_URL = process.env.MUMBAI_RPC_URL || "";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY || "";
+const POLYGONEDGE_RPC_URL = process.env.POLYGONEDGE_RPC_URL || "";
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
@@ -39,6 +40,11 @@ const config: HardhatUserConfig = {
       url: MUMBAI_RPC_URL,
       accounts: [PRIVATE_KEY],
       chainId: 80001,
+    },
+    polygonEdge: {
+      url: POLYGONEDGE_RPC_URL,
+      accounts: [PRIVATE_KEY],
+      chainId: 112233,
     },
   },
   solidity: {
