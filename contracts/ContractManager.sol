@@ -16,11 +16,11 @@ contract ContractManager {
         string duration;
         string finalDate;
         string earlyTerminationPossible;
-        uint256 terminationPeriod;
+        string terminationPeriod;
         string supplierReimbursement;
         string intellectualPropertyOwner;
         string currency;
-        uint256 fixedAmount;
+        string fixedAmount;
         string includeTax;
         string typeOfCompensation;
     }
