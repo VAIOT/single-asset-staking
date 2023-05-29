@@ -14,7 +14,7 @@ contract ContractManager {
 
     struct AgreementTerms {
         string duration;
-        uint256 finalDate;
+        string finalDate;
         string earlyTerminationPossible;
         uint256 terminationPeriod;
         string supplierReimbursement;
@@ -56,6 +56,10 @@ contract ContractManager {
     mapping(uint256 => Party[]) private contractParties;
     mapping(uint256 => Service[]) private contractServices;
 
+    // ============= EVENTS ============
+
+    event ContractCreated(uint contractId);
+
     // ============= CONSTRUCTOR ============
 
     constructor() {
@@ -82,7 +86,7 @@ contract ContractManager {
         AgreementTerms memory _agreementTerms,
         Party[] memory _parties,
         Service[] memory _services
-    ) public onlyOwner {
+    ) public onlyOwner returns (uint) {
         contracts[_owner].push(
             Contract({
                 id: nextContractId,
@@ -99,7 +103,10 @@ contract ContractManager {
             contractServices[nextContractId].push(_services[i]);
         }
 
+        uint createdContractId = nextContractId;
         nextContractId++;
+        emit ContractCreated(createdContractId);
+        return createdContractId;
     }
 
     /// @notice Function that allows you to add parties to an existing contract
@@ -211,7 +218,6 @@ contract ContractManager {
     )
         public
         view
-        onlyOwner
         returns (
             Contract memory contractDetails,
             Party[] memory parties,
@@ -233,7 +239,7 @@ contract ContractManager {
     /// @param _owner - owner of the contract
     function getContracts(
         address _owner
-    ) public view onlyOwner returns (Contract[] memory) {
+    ) public view returns (Contract[] memory) {
         return contracts[_owner];
     }
 
@@ -241,7 +247,7 @@ contract ContractManager {
     /// @param _owner - owner of the contract
     function getContractIds(
         address _owner
-    ) public view onlyOwner returns (uint256[] memory) {
+    ) public view returns (uint256[] memory) {
         uint256 length = contracts[_owner].length;
         uint256[] memory contractIds = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
@@ -254,7 +260,7 @@ contract ContractManager {
     /// @param _owner - owner of the contract
     function getContractOverviews(
         address _owner
-    ) public view onlyOwner returns (ContractOverview[] memory) {
+    ) public view returns (ContractOverview[] memory) {
         uint256 length = contracts[_owner].length;
         ContractOverview[] memory contractOverviews = new ContractOverview[](
             length
