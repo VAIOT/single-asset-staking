@@ -59,6 +59,7 @@ contract ContractManager {
     // ============= EVENTS ============
 
     event ContractCreated(uint contractId);
+    event OwnershipTransferred(address oldOwner, address newOwner);
 
     // ============= CONSTRUCTOR ============
 
@@ -87,6 +88,7 @@ contract ContractManager {
         Party[] memory _parties,
         Service[] memory _services
     ) public onlyOwner returns (uint) {
+        require(_owner != address(0), "Owner address cannot be 0");
         contracts[_owner].push(
             Contract({
                 id: nextContractId,
@@ -117,6 +119,10 @@ contract ContractManager {
         uint256 _contractId,
         Party memory _party
     ) public onlyOwner {
+        require(
+            contractParties[_contractId].length > 0,
+            "Contract does not exist"
+        );
         contractParties[_contractId].push(_party);
     }
 
@@ -128,6 +134,10 @@ contract ContractManager {
         uint256 _contractId,
         Service memory _service
     ) public onlyOwner {
+        require(
+            contractParties[_contractId].length > 0,
+            "Contract does not exist"
+        );
         contractServices[_contractId].push(_service);
     }
 
@@ -139,15 +149,22 @@ contract ContractManager {
         uint256 _contractId
     ) public onlyOwner {
         // Find and delete the contract
+        bool contractFound = false;
         for (uint256 i = 0; i < contracts[_owner].length; i++) {
             if (contracts[_owner][i].id == _contractId) {
-                delete contracts[_owner][i];
+                contractFound = true;
+                // Move the last element into the place to delete
+                contracts[_owner][i] = contracts[_owner][
+                    contracts[_owner].length - 1
+                ];
+                // Remove the last element
+                contracts[_owner].pop();
                 delete contractParties[_contractId];
                 delete contractServices[_contractId];
-                return;
+                break;
             }
         }
-        revert("Contract not found");
+        require(contractFound, "Contract does not exist");
     }
 
     /// @notice Function that allows you to update contract's aggreement terms
@@ -204,6 +221,7 @@ contract ContractManager {
     /// @param _newOwner - new owner of the smart contract
     function transferOwnership(address _newOwner) public onlyOwner {
         require(_newOwner != address(0), "New owner is the zero address");
+        emit OwnershipTransferred(deployer, _newOwner);
         deployer = _newOwner;
     }
 
