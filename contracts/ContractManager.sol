@@ -256,6 +256,12 @@ contract ContractManager {
         return contractIds;
     }
 
+    /// @notice Function that allows you to check the owner of the smart contract
+
+    function getOwner() public view returns (address) {
+        return deployer;
+    }
+
     /// @notice Function that allows you to get contractID, party names and creation date of all contracts of a specific owner
     /// @param _owner - owner of the contract
     function getContractOverviews(
