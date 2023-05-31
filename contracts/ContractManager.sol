@@ -262,6 +262,10 @@ contract ContractManager {
         return deployer;
     }
 
+    function getNextContractId() public view returns (uint) {
+        return nextContractId;
+    }
+
     /// @notice Function that allows you to get contractID, party names and creation date of all contracts of a specific owner
     /// @param _owner - owner of the contract
     function getContractOverviews(
