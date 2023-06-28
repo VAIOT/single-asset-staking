@@ -23,6 +23,7 @@ contract ContractManager {
         string fixedAmount;
         string includeTax;
         string typeOfCompensation;
+        string courtJurisdiction;
     }
 
     struct Party {
@@ -39,6 +40,7 @@ contract ContractManager {
 
     struct Contract {
         uint256 id;
+        string effectiveDate;
         uint256 creationDate;
         AgreementTerms agreementTerms;
     }
@@ -76,7 +78,7 @@ contract ContractManager {
 
     // ============= MAIN FUNCTIONS ============
 
-    /// @notice Function that allows you to create a new contract
+    /// @notice Function that allows you to create a new contract.
     /// @param _owner - address of the account that we are creating the contract for
     /// @param _agreementTerms - terms of the aggreement
     /// @param _parties - parties of the aggreement
@@ -84,6 +86,7 @@ contract ContractManager {
 
     function createContract(
         address _owner,
+        string memory _effectiveDate,
         AgreementTerms memory _agreementTerms,
         Party[] memory _parties,
         Service[] memory _services
@@ -92,6 +95,7 @@ contract ContractManager {
         contracts[_owner].push(
             Contract({
                 id: nextContractId,
+                effectiveDate: _effectiveDate,
                 creationDate: block.timestamp,
                 agreementTerms: _agreementTerms
             })
