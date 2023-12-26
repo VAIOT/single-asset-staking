@@ -27,4 +27,4 @@ const deployMocks: DeployFunction = async function (
   }
 };
 export default deployMocks;
-deployMocks.tags = ["all", "mocks"];
+deployMocks.tags = ["all", "mocks", "payback"];
