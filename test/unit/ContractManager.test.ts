@@ -19,7 +19,11 @@ describe("StakingRewards", function () {
     player = accounts[1];
     playerTwo = accounts[2];
     await deployments.fixture(["contract_manager"]);
-    contractManager = await ethers.getContract("ContractManager");
+    const contractManagerDeployment = await deployments.get("ContractManager");
+    contractManager = await ethers.getContractAt(
+      "ContractManager",
+      contractManagerDeployment.address
+    );
   });
 
   describe("constructor", function () {
@@ -34,7 +38,13 @@ describe("StakingRewards", function () {
       await expect(
         contractManager
           .connect(deployer)
-          .createContract(deployer.address, agreementTerms, parties, services)
+          .createContract(
+            deployer.address,
+            "10/29/2023",
+            agreementTerms,
+            parties,
+            services
+          )
       )
         .to.emit(contractManager, "ContractCreated")
         .withArgs(1); // expects the contractId to be 1
@@ -101,7 +111,13 @@ describe("StakingRewards", function () {
     it("correctly updates the id of the contract", async () => {
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
       const nextContractId = await contractManager.getNextContractId();
       assert.equal("2", nextContractId.toString());
     });
@@ -111,7 +127,13 @@ describe("StakingRewards", function () {
       await expect(
         contractManager
           .connect(player)
-          .createContract(player.address, agreementTerms, parties, services)
+          .createContract(
+            player.address,
+            "30/12/2023",
+            agreementTerms,
+            parties,
+            services
+          )
       ).to.be.revertedWith("Caller is not the owner");
     });
 
@@ -123,6 +145,7 @@ describe("StakingRewards", function () {
         .connect(deployer)
         .createContract(
           deployer.address,
+          "30/12/2023",
           agreementTerms,
           emptyParties,
           emptyServices
@@ -141,6 +164,7 @@ describe("StakingRewards", function () {
           .connect(deployer)
           .createContract(
             ethers.constants.AddressZero,
+            "30/12/2023",
             agreementTerms,
             parties,
             services
@@ -153,7 +177,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       const newParty = {
         partyType: "some type",
@@ -221,7 +251,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       const newService = {
         service: "new service",
@@ -272,7 +308,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       await contractManager.deleteContract(deployer.address, 1);
 
@@ -286,7 +328,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       await expect(
         contractManager.connect(player).deleteContract(deployer.address, 1)
@@ -304,7 +352,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       const updatedParty = {
         partyType: "updated type",
@@ -381,7 +435,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       const updatedService = {
         service: "updated service",
@@ -429,7 +489,13 @@ describe("StakingRewards", function () {
       // Create contract first
       await contractManager
         .connect(deployer)
-        .createContract(deployer.address, agreementTerms, parties, services);
+        .createContract(
+          deployer.address,
+          "30/12/2023",
+          agreementTerms,
+          parties,
+          services
+        );
 
       const updatedService = {
         service: "updated service",

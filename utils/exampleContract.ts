@@ -9,6 +9,7 @@ export const agreementTerms = {
   fixedAmount: "5000",
   includeTax: "Yes",
   typeOfCompensation: "Fixed",
+  courtJurisdiction: "Poland",
 };
 
 export const parties = [
