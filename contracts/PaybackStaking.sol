@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
+
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -18,6 +20,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
   // Structs
   struct User {
     uint256 balance; // Total staked tokens including rewards
+    uint256 rewards; // Total amount of rewards gained by user
     uint256 depositTime; // Timestamp of the last deposit or withdrawal
     uint256 lastUpdateTime; // Timestamp of the last reward calculation
     bool exists; // Flag to check if the user exists
@@ -29,7 +32,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
   // Variables
   address[] private userAddresses;
   uint256 public APY; // Annual Percentage Yield in percentage points (e.g., 10 for 10%)
-  uint256 public tokenPool; // Total tokens available in the pool for staking
+  uint256 public tokenPool; // Total tokens available in the pool for staking and rewards
   uint256 public totalStaked; // Total tokens staked by all users
   uint256 public inactivityLimit; // Limit of time until owner takes over the funds
   uint256 private constant TIME_IN_A_YEAR = 365 days; // Time in a year
@@ -62,22 +65,28 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
    * @param _amount Amount of tokens to deposit.
    */
   function depositForUser(address _user, uint256 _amount) external onlyOwner {
-    uint256 maxReward = calculateMaxReward(_amount);
+    uint256 totalPotentialStaked = totalStaked + _amount;
+    uint256 potentialMaxPayout = calculateMaxPayout(totalPotentialStaked);
+
     require(
-      tokenPool >= _amount + maxReward,
-      "Insufficient funds in pool to cover deposit and potential rewards"
+      tokenPool >= potentialMaxPayout,
+      "Insufficient tokens in pool to cover potential max rewards"
     );
 
     User storage usr = users[_user];
+
     if (!usr.exists) {
       usr.exists = true;
       userAddresses.push(_user);
+      usr.lastUpdateTime = block.timestamp;
+    } else {
+      updateReward(_user);
+      usr.lastUpdateTime = block.timestamp;
     }
-    updateReward(_user);
+
     usr.balance += _amount;
     usr.depositTime = block.timestamp;
-    usr.lastUpdateTime = block.timestamp;
-    tokenPool -= _amount;
+
     totalStaked += _amount;
     emit Deposited(_user, _amount);
   }
@@ -96,11 +105,24 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
     );
 
     updateReward(msg.sender);
+
     uint256 amount = usr.balance;
+    uint256 totalRewards = usr.rewards;
+
+    // Reset user's data
     usr.balance = 0;
     usr.depositTime = 0;
+    usr.rewards = 0;
+    usr.lastUpdateTime = 0;
+    usr.exists = false;
+
     totalStaked -= amount;
-    require(stakingToken.transfer(msg.sender, amount), "Token transfer failed");
+    tokenPool -= totalRewards;
+    tokenPool -= amount;
+    require(
+      stakingToken.transfer(msg.sender, amount + totalRewards),
+      "Token transfer failed"
+    );
     emit Withdrawn(msg.sender, amount);
   }
 
@@ -109,15 +131,27 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
    * @param _user Address of the user for whom to update the reward.
    */
   function updateReward(address _user) internal {
+    // Ensure that the user exists
+    require(users[_user].exists, "User does not exist");
+
     User storage usr = users[_user];
-    if (usr.exists && block.timestamp - usr.depositTime < inactivityLimit) {
-      uint256 timeElapsed = block.timestamp - usr.lastUpdateTime;
-      uint256 reward = (usr.balance * APY * timeElapsed) /
-        (TIME_IN_A_YEAR * 100);
-      usr.balance += reward;
-      usr.lastUpdateTime = block.timestamp;
-      emit RewardPaid(_user, reward);
-    }
+    uint256 timeElapsed = block.timestamp - usr.lastUpdateTime;
+
+    // Check if the time elapsed is within the inactivity limit
+    require(timeElapsed <= inactivityLimit, "Inactivity limit exceeded");
+
+    // Ensure that both balance and APY are non-zero
+    require(usr.balance > 0, "Zero user balance");
+    require(APY > 0, "Zero APY");
+
+    // Calculate rewards for the whole year
+    uint256 rewardForYear = (usr.balance * APY) / 100;
+
+    uint256 reward = (rewardForYear * timeElapsed) / TIME_IN_A_YEAR;
+
+    usr.rewards += reward;
+    usr.lastUpdateTime = block.timestamp;
+    emit RewardPaid(_user, reward);
   }
 
   /**
@@ -174,11 +208,20 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
   }
 
   /**
-   * @dev Calculates the maximum possible reward for a given amount of staked tokens.
-   * @param _amount The amount of tokens to be staked.
+   * @dev Calculates the maximum possible reward for a given amount of staked tokens
+   * considering the inactivity limit.
+   * @param _totalStaked The total amount of tokens that would be staked.
    * @return The maximum possible reward.
    */
-  function calculateMaxReward(uint256 _amount) internal view returns (uint256) {
-    return (_amount * APY * inactivityLimit) / (TIME_IN_A_YEAR * 100);
+  function calculateMaxPayout(
+    uint256 _totalStaked
+  ) public view returns (uint256) {
+    uint256 maxRewardPeriod = inactivityLimit / TIME_IN_A_YEAR;
+
+    // Perform multiplication first to reduce truncation
+    uint256 totalAPY = APY * maxRewardPeriod;
+    uint256 maxPayout = (_totalStaked * (100 + totalAPY)) / 100;
+
+    return maxPayout;
   }
 }

@@ -27,7 +27,7 @@ const deployPaybackStakingContract: DeployFunction = async function (
   log("Deploying Payback Staking Contract and waiting for confirmations...");
 
   const initialApy = 10; // initial APY
-  const inactivityLimit = 63113852; // 2 years in seconds
+  const inactivityLimit = 2 * 365 * 24 * 60 * 60; // 2 years in seconds
 
   const contractArgs = [
     initialApy,
