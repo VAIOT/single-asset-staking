@@ -81,10 +81,15 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
       usr.lastUpdateTime = block.timestamp;
     } else if (usr.exists) {
       if (block.timestamp - usr.depositTime >= inactivityLimit) {
-        usr.balance = 0;
-        usr.rewards = 0;
+        uint256 amountExpired = usr.balance + usr.rewards;
         usr.lastUpdateTime = block.timestamp;
         usr.depositTime = block.timestamp;
+        usr.balance = 0;
+        usr.rewards = 0;
+        require(
+          stakingToken.transfer(owner(), amountExpired),
+          "Token transfer failed"
+        );
       } else {
         updateReward(_user);
         usr.lastUpdateTime = block.timestamp;
@@ -198,6 +203,10 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
       if (usr.exists && block.timestamp - usr.depositTime >= inactivityLimit) {
         expiredFunds += usr.balance;
         usr.balance = 0;
+        usr.rewards = 0;
+        usr.depositTime = 0;
+        usr.lastUpdateTime = 0;
+        usr.exists = false;
         emit InactiveUserUpdated(userAddress);
       }
     }

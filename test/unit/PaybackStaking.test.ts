@@ -1,8 +1,8 @@
 import { assert, expect } from "chai";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { network, deployments, ethers } from "hardhat";
 import { developmentChains } from "../../helper-hardhat-config";
 import { MockToken, PaybackStaking } from "../../typechain-types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("PaybackStaking", function () {
@@ -552,6 +552,57 @@ describe("PaybackStaking", function () {
         ethers.utils.parseEther("0.1")
       );
     });
+    it("handles multiple deposits and withdrawals by the same user correctly", async function () {
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Deposit 10 tokens for staking and rewards
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+
+      // Multiple user deposits across different time periods
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+      await time.increase((1 / 12) * TIME_IN_A_YEAR); // Increase by 1 month
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+      await time.increase((2 / 12) * TIME_IN_A_YEAR); // Increase by 2 months
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+      await time.increase((3 / 12) * TIME_IN_A_YEAR); // Increase by 3 months
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+      await time.increase((4 / 12) * TIME_IN_A_YEAR); // Increase by 4 months
+
+      // User withdrawing funds
+      await paybackStaking.connect(player).withdraw();
+
+      // Checking if the amount of tokens withdrawn is good
+      // 4 tokens staked + 0.1 * 1/12 * 1 + 0.1 * 2/12 * 2 + 0.1 * 3/12 * 3 + 0.1 * 4/12 * 4
+
+      const expectedBalance = ethers.utils.parseEther(
+        (
+          4 +
+          ((0.1 * 1) / 12) * 1 +
+          ((0.1 * 2) / 12) * 2 +
+          ((0.1 * 3) / 12) * 3 +
+          ((0.1 * 4) / 12) * 4
+        ).toString()
+      );
+
+      const playerBalance = await mockToken.balanceOf(player.address);
+
+      expect(playerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+
+      // Additional check if all properties of user have been reset after withdrawal
+      const userInfo = await paybackStaking.getUserInfo(player.address);
+
+      expect(userInfo.exists).to.be.false;
+      expect(userInfo.balance).to.equal(0);
+      expect(userInfo.depositTime).to.be.equal(0);
+      expect(userInfo.lastUpdateTime).to.be.equal(0);
+    });
   });
   describe("apy", () => {
     it("updates the APY correctly and emits proper event", async function () {
@@ -634,6 +685,224 @@ describe("PaybackStaking", function () {
       expect(playerBalance).to.be.closeTo(
         expectedBalance,
         ethers.utils.parseEther("0.1")
+      );
+    });
+  });
+  describe("ownerWithdrawExpiredFunds", () => {
+    it("allows the owner to withdraw expired funds correctly", async function () {
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Deposit 10 tokens for deposits and rewards
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Increase time just over the inactivity limit
+      await time.increase(2 * TIME_IN_A_YEAR + 1);
+      await paybackStaking.ownerWithdrawExpiredFunds();
+
+      // Check if owner received 1 token back
+
+      const expectedBalance = ethers.utils.parseEther("1");
+
+      const deployerBalance = await mockToken.balanceOf(deployer.address);
+
+      expect(deployerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.01")
+      );
+    });
+    it("allows owner to withdraw expired funds from multiple users", async () => {
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Deposit 10 tokens for deposits and rewards
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+
+      // Deposit 1 token for player one
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Increase time by 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      // Deposit 1 token for player two
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Increase time by 1 month
+
+      await time.increase((1 / 12) * TIME_IN_A_YEAR);
+
+      // Deposit 1 token for player three
+
+      await paybackStaking.depositForUser(playerThree.address, stakedAmount);
+
+      // Increase time just over the inactivity limit
+      await time.increase(2 * TIME_IN_A_YEAR + 1);
+      await paybackStaking.ownerWithdrawExpiredFunds();
+
+      // Check if owner received 3 tokens back
+
+      const expectedBalance = ethers.utils.parseEther("3");
+
+      const deployerBalance = await mockToken.balanceOf(deployer.address);
+
+      expect(deployerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+
+      await expect(
+        paybackStaking.connect(player).withdraw()
+      ).to.be.revertedWith("User does not exist");
+      await expect(
+        paybackStaking.connect(playerTwo).withdraw()
+      ).to.be.revertedWith("User does not exist");
+      await expect(
+        paybackStaking.connect(playerThree).withdraw()
+      ).to.be.revertedWith("User does not exist");
+    });
+    it("automatically withdraws expired funds upon another deposit", async () => {
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Deposit 10 tokens for deposits and rewards
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+
+      // Deposit 1 token for player one
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Increase time by just a little over inactivity limit
+      await time.increase(TIME_IN_A_YEAR * 2 + 1);
+
+      // Deposit 1 token for player one
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Check if owner received 1 tokens back
+
+      const expectedBalance = ethers.utils.parseEther("1");
+
+      const deployerBalance = await mockToken.balanceOf(deployer.address);
+
+      expect(deployerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+
+      // Increase time by 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      await expect(paybackStaking.connect(player).withdraw()).to.not.be
+        .reverted;
+
+      // Check if user received his 1 token + 0.1 token
+      const expectedPlayerBalance = ethers.utils.parseEther("1");
+
+      const playerBalance = await mockToken.balanceOf(deployer.address);
+
+      expect(playerBalance).to.be.closeTo(
+        expectedPlayerBalance,
+        ethers.utils.parseEther("0.01")
+      );
+
+      // Increasing time again and checking if user will be able to withdraw anything
+      await time.increase(TIME_IN_A_YEAR);
+
+      await expect(
+        paybackStaking.connect(player).withdraw()
+      ).to.be.revertedWith("User does not exist");
+    });
+    it.only("correctly handles situation when some users have expired funds and some dont", async () => {
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Deposit 10 tokens for deposits and rewards
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+
+      // Deposit 1 token for player one
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Increase time by 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      // Deposit 1 token for player two
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Increase time by 1.5 years so first user has expired and second one does not expire
+
+      await time.increase(1.5 * TIME_IN_A_YEAR);
+
+      // Owner withdraws expired funds
+
+      await paybackStaking.ownerWithdrawExpiredFunds();
+
+      // The first person should not be able to withdraw, but second player should be able to
+
+      await expect(
+        paybackStaking.connect(player).withdraw()
+      ).to.be.revertedWith("User does not exist");
+
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+
+      // Check balance of the owner and players
+
+      const expectedPlayerOneBalance = ethers.utils.parseEther("0");
+      const expectedPlayerTwoBalance = ethers.utils.parseEther("1.15");
+      const expectedDeployerBalance = ethers.utils.parseEther("1");
+
+      const playerOneBalance = await mockToken.balanceOf(player.address);
+      const playerTwoBalance = await mockToken.balanceOf(playerTwo.address);
+      const deployerBalance = await mockToken.balanceOf(deployer.address);
+
+      expect(playerOneBalance).to.be.closeTo(
+        expectedPlayerOneBalance,
+        ethers.utils.parseEther("0.01")
+      );
+      expect(playerTwoBalance).to.be.closeTo(
+        expectedPlayerTwoBalance,
+        ethers.utils.parseEther("0.01")
+      );
+      expect(deployerBalance).to.be.closeTo(
+        expectedDeployerBalance,
+        ethers.utils.parseEther("0.01")
+      );
+
+      // We can continue to stake funds for the first player after his first funds were taken
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Let's fast forward 6 months
+      await time.increase((1 / 2) * TIME_IN_A_YEAR);
+      await expect(paybackStaking.connect(player).withdraw()).to.not.be
+        .reverted;
+
+      // First player should normally receive 1.05 tokens
+      const playerOneBalanceNew = await mockToken.balanceOf(player.address);
+      const expectedPlayerOneBalanceNew = ethers.utils.parseEther("1.05");
+      expect(playerOneBalanceNew).to.be.closeTo(
+        expectedPlayerOneBalanceNew,
+        ethers.utils.parseEther("0.01")
+      );
+
+      // There are no new expired funds, so calling ownerWithdrawExpiredFunds should not do anything
+
+      await paybackStaking.ownerWithdrawExpiredFunds();
+      const expectedDeployerBalanceNew = ethers.utils.parseEther("1");
+      const deployerBalanceNew = await mockToken.balanceOf(deployer.address);
+      expect(deployerBalanceNew).to.be.closeTo(
+        expectedDeployerBalanceNew,
+        ethers.utils.parseEther("0.01")
       );
     });
   });
