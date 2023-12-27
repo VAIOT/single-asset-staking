@@ -554,11 +554,87 @@ describe("PaybackStaking", function () {
     });
   });
   describe("apy", () => {
-    it.only("updates the APY correctly", async function () {
+    it("updates the APY correctly and emits proper event", async function () {
       const newAPY = 20;
-      await paybackStaking.setAPY(newAPY);
+      await expect(paybackStaking.setAPY(newAPY))
+        .to.emit(paybackStaking, "APYChanged")
+        .withArgs(newAPY);
       const currentAPY = await paybackStaking.APY();
       expect(currentAPY).to.equal(newAPY);
+    });
+    it("cannot set apy to be 0", async function () {
+      await expect(paybackStaking.setAPY(0)).to.be.revertedWith(
+        "APY has to be greater than zero!"
+      );
+    });
+    it("properly calculates new rewards after changing the APY", async () => {
+      // Setting APY to 20%
+      const newAPY = 20;
+      await paybackStaking.setAPY(newAPY);
+
+      const depositAmount = ethers.utils.parseEther("100");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+
+      // Checking if user has a good amount of tokens 20 + 0.2*20 = 24
+      const expectedBalance = ethers.utils.parseEther("24");
+
+      const playerBalance = await mockToken.balanceOf(playerTwo.address);
+
+      expect(playerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+    });
+    it("properly handles situation when there are funds already deposited and the apy changes", async () => {
+      const depositAmount = ethers.utils.parseEther("100");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      // Deposit additional 20 tokens
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Setting APY to 20%
+      const newAPY = 20;
+      await paybackStaking.setAPY(newAPY);
+
+      // Fast-forward time 1 year
+      await time.increase(TIME_IN_A_YEAR);
+
+      // Withdraw tokens
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+
+      // Checking if user has a good amount of tokens 20 + 0.1*20 + 20 + 0.2*40
+      const expectedBalance = ethers.utils.parseEther("50");
+
+      const playerBalance = await mockToken.balanceOf(playerTwo.address);
+
+      expect(playerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
     });
   });
 });

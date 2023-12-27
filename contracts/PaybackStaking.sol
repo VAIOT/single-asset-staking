@@ -167,6 +167,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
    * @param _newAPY New APY to be set.
    */
   function setAPY(uint256 _newAPY) external onlyOwner {
+    require(_newAPY > 0, "APY has to be greater than zero!");
     APY = _newAPY;
     emit APYChanged(_newAPY);
   }
