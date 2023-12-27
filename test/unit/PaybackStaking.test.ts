@@ -417,5 +417,85 @@ describe("PaybackStaking", function () {
         "Insufficient tokens in pool to cover potential max rewards"
       );
     });
+    it("does not allow users to withdraw funds after inactivity period has passed", async () => {
+      const depositAmount = ethers.utils.parseEther("50");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 2 years
+      await time.increase(TIME_IN_A_YEAR * 2);
+
+      await expect(
+        paybackStaking.connect(playerTwo).withdraw()
+      ).to.be.revertedWith("Withdrawal period expired");
+    });
+    it("allows user to withdraw still after 1 year 11 months and 29 days", async () => {
+      const depositAmount = ethers.utils.parseEther("50");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 2 years
+      await time.increase(TIME_IN_A_YEAR * 1.99);
+
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+    });
+    it("correctly calculates rewards for new deposit after the first one expired", async () => {
+      const depositAmount = ethers.utils.parseEther("50");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 2 years
+      await time.increase(TIME_IN_A_YEAR * 2);
+
+      // We want to revert this withdrawal, since its past the limit
+
+      await expect(
+        paybackStaking.connect(playerTwo).withdraw()
+      ).to.be.revertedWith("Withdrawal period expired");
+
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+      await time.increase(TIME_IN_A_YEAR);
+
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+
+      const expectedBalance = ethers.utils.parseEther("22");
+
+      const playerBalance = await mockToken.balanceOf(playerTwo.address);
+
+      // Checking if the new balance is 22 tokens since he staked 20 tokens for a year
+      expect(playerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+
+      // Check user info if it has been reset properly after withdrawing
+
+      const userInfo = await paybackStaking.getUserInfo(playerTwo.address);
+
+      expect(userInfo.exists).to.be.false;
+      expect(userInfo.balance).to.equal(0);
+      expect(userInfo.depositTime).to.be.equal(0);
+      expect(userInfo.lastUpdateTime).to.be.equal(0);
+    });
   });
 });

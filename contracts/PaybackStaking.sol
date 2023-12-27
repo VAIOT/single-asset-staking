@@ -79,9 +79,16 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
       usr.exists = true;
       userAddresses.push(_user);
       usr.lastUpdateTime = block.timestamp;
-    } else {
-      updateReward(_user);
-      usr.lastUpdateTime = block.timestamp;
+    } else if (usr.exists) {
+      if (block.timestamp - usr.depositTime >= inactivityLimit) {
+        usr.balance = 0;
+        usr.rewards = 0;
+        usr.lastUpdateTime = block.timestamp;
+        usr.depositTime = block.timestamp;
+      } else {
+        updateReward(_user);
+        usr.lastUpdateTime = block.timestamp;
+      }
     }
 
     usr.balance += _amount;
