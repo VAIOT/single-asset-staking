@@ -497,5 +497,68 @@ describe("PaybackStaking", function () {
       expect(userInfo.depositTime).to.be.equal(0);
       expect(userInfo.lastUpdateTime).to.be.equal(0);
     });
+    it("correctly blocks withdrawal after inactivity period passed, allows to deposit again, blocks withdrawal after long inactivity again, allows to deposit again and withdraw", async () => {
+      const depositAmount = ethers.utils.parseEther("100");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      // Make initial deposit of 20 tokens
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 2 years
+      await time.increase(TIME_IN_A_YEAR * 2);
+
+      // Should revert since 2 years passed
+      await expect(
+        paybackStaking.connect(playerTwo).withdraw()
+      ).to.be.revertedWith("Withdrawal period expired");
+
+      // Waiting another year
+      await time.increase(TIME_IN_A_YEAR);
+
+      // Staking again
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Fast-forward time 2 years
+      await time.increase(TIME_IN_A_YEAR * 2);
+
+      // Should revert since 2 years passed
+      await expect(
+        paybackStaking.connect(playerTwo).withdraw()
+      ).to.be.revertedWith("Withdrawal period expired");
+
+      // Staking again
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+
+      // Waiting a month
+      await time.increase(TIME_IN_A_YEAR / 12);
+
+      // Since only a month passed it should not be reverted
+      await expect(paybackStaking.connect(playerTwo).withdraw()).to.not.be
+        .reverted;
+
+      // Checking if user has a good amount of tokens 20 + 1/12 * 2
+      const expectedBalance = ethers.utils.parseEther(
+        (20 + (1 / 12) * 2).toString()
+      );
+
+      const playerBalance = await mockToken.balanceOf(playerTwo.address);
+
+      expect(playerBalance).to.be.closeTo(
+        expectedBalance,
+        ethers.utils.parseEther("0.1")
+      );
+    });
+  });
+  describe("apy", () => {
+    it.only("updates the APY correctly", async function () {
+      const newAPY = 20;
+      await paybackStaking.setAPY(newAPY);
+      const currentAPY = await paybackStaking.APY();
+      expect(currentAPY).to.equal(newAPY);
+    });
   });
 });
