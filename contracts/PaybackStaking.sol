@@ -84,8 +84,10 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
         uint256 amountExpired = usr.balance + usr.rewards;
         usr.lastUpdateTime = block.timestamp;
         usr.depositTime = block.timestamp;
+        totalStaked -= usr.balance;
         usr.balance = 0;
         usr.rewards = 0;
+
         require(
           stakingToken.transfer(owner(), amountExpired),
           "Token transfer failed"
@@ -240,5 +242,14 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
     uint256 maxPayout = (_totalStaked * (100 + totalAPY)) / 100;
 
     return maxPayout;
+  }
+
+  /**
+   * @dev Transfers ownership of the contract to a new account (`newOwner`).
+   * @notice Can only be called by the current owner.
+   * @param newOwner Address of the new owner.
+   */
+  function transferContractOwnership(address newOwner) public onlyOwner {
+    transferOwnership(newOwner);
   }
 }

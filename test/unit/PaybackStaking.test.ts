@@ -797,6 +797,12 @@ describe("PaybackStaking", function () {
         ethers.utils.parseEther("0.1")
       );
 
+      // Check if total amount of token staked has been correctly updated
+
+      const tokensStaked = await paybackStaking.totalStaked();
+      const expectedTotalStaked = ethers.utils.parseEther("1");
+      assert.equal(tokensStaked.toString(), expectedTotalStaked.toString());
+
       // Increase time by 1 year
       await time.increase(TIME_IN_A_YEAR);
 
@@ -820,7 +826,7 @@ describe("PaybackStaking", function () {
         paybackStaking.connect(player).withdraw()
       ).to.be.revertedWith("User does not exist");
     });
-    it.only("correctly handles situation when some users have expired funds and some dont", async () => {
+    it("correctly handles situation when some users have expired funds and some dont", async () => {
       const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
 
       // Deposit 10 tokens for deposits and rewards
@@ -904,6 +910,91 @@ describe("PaybackStaking", function () {
         expectedDeployerBalanceNew,
         ethers.utils.parseEther("0.01")
       );
+    });
+  });
+  describe("front-running-attack", () => {
+    it("is secure against front-running attacks during withdrawals", async function () {
+      // Scenario setup: `playerTwo` has staked tokens and is about to withdraw
+      const depositAmount = ethers.utils.parseEther("50");
+      const stakedAmount = ethers.utils.parseEther("20");
+      const stakedAmountThree = ethers.utils.parseEther("10");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+      await paybackStaking.depositForUser(playerTwo.address, stakedAmount);
+      await paybackStaking.depositForUser(
+        playerThree.address,
+        stakedAmountThree
+      );
+
+      // Fast forward time to accrue rewards
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+      await time.increase(TIME_IN_A_YEAR);
+
+      // `playerThree` tries to front-run `playerTwo`'s withdrawal
+      // Assuming `playerThree` has also staked an amount earlier
+      const playerThreeWithdrawTx = paybackStaking
+        .connect(playerThree)
+        .withdraw();
+
+      // `playerTwo` performs the withdrawal
+      const playerTwoWithdrawTx = paybackStaking.connect(playerTwo).withdraw();
+
+      // Simulate both transactions being sent in quick succession
+      await Promise.all([playerThreeWithdrawTx, playerTwoWithdrawTx]);
+
+      // Validate the results
+      // Check if both withdrawals were processed without impacting each other
+      await expect(playerThreeWithdrawTx).to.not.be.reverted;
+      await expect(playerTwoWithdrawTx).to.not.be.reverted;
+
+      // Let's check if both users got the right amount of tokens
+      const playerTwoBalance = await mockToken.balanceOf(playerTwo.address);
+      const playerThreeBalance = await mockToken.balanceOf(playerThree.address);
+
+      const expectedPlayerTwoBalance = ethers.utils.parseEther("22");
+      const expectedPlayerThreeBalance = ethers.utils.parseEther("11");
+
+      expect(playerTwoBalance).to.be.closeTo(
+        expectedPlayerTwoBalance,
+        ethers.utils.parseEther("0.01")
+      );
+
+      expect(playerThreeBalance).to.be.closeTo(
+        expectedPlayerThreeBalance,
+        ethers.utils.parseEther("0.01")
+      );
+    });
+  });
+  describe("transferContractOwnership", () => {
+    it("successfully transfers ownership of the contract", async () => {
+      await paybackStaking.transferOwnership(player.address);
+      const newOwner = await paybackStaking.owner();
+      assert.equal(newOwner, player.address);
+    });
+    it("unables old owner to call onlyOwner functions", async () => {
+      // Transfer ownership
+      await paybackStaking.transferOwnership(player.address);
+      const newOwner = await paybackStaking.owner();
+      assert.equal(newOwner, player.address);
+
+      // Give the old owner tokens
+      const depositAmount = ethers.utils.parseEther("50");
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await mockToken.mint(player.address, depositAmount);
+      await mockToken
+        .connect(player)
+        .approve(paybackStaking.address, depositAmount);
+
+      // Try to refill pool as the old owner
+      await expect(
+        paybackStaking.refillTokenPool(depositAmount)
+      ).to.be.revertedWith("OwnableUnauthorizedAccount");
+
+      await expect(
+        paybackStaking.connect(player).refillTokenPool(depositAmount)
+      ).to.not.be.reverted;
     });
   });
 });
