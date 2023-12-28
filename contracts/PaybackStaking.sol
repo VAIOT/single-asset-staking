@@ -5,18 +5,12 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-interface IERC20 {
-  function transfer(address recipient, uint256 amount) external returns (bool);
-
-  function transferFrom(
-    address sender,
-    address recipient,
-    uint256 amount
-  ) external returns (bool);
-}
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PaybackStaking is ReentrancyGuard, Ownable {
+  using SafeERC20 for IERC20;
+
   // Structs
   struct User {
     uint256 balance; // Total staked tokens including rewards
@@ -87,11 +81,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
         totalStaked -= usr.balance;
         usr.balance = 0;
         usr.rewards = 0;
-
-        require(
-          stakingToken.transfer(owner(), amountExpired),
-          "Token transfer failed"
-        );
+        stakingToken.safeTransfer(owner(), amountExpired);
       } else {
         updateReward(_user);
         usr.lastUpdateTime = block.timestamp;
@@ -133,10 +123,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
     totalStaked -= amount;
     tokenPool -= totalRewards;
     tokenPool -= amount;
-    require(
-      stakingToken.transfer(msg.sender, amount + totalRewards),
-      "Token transfer failed"
-    );
+    stakingToken.safeTransfer(msg.sender, amount + totalRewards);
     emit Withdrawn(msg.sender, amount);
   }
 
@@ -145,16 +132,13 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
    * @param _user Address of the user for whom to update the reward.
    */
   function updateReward(address _user) internal {
-    // Ensure that the user exists
     require(users[_user].exists, "User does not exist");
 
     User storage usr = users[_user];
     uint256 timeElapsed = block.timestamp - usr.lastUpdateTime;
 
-    // Check if the time elapsed is within the inactivity limit
     require(timeElapsed <= inactivityLimit, "Inactivity limit exceeded");
 
-    // Ensure that both balance and APY are non-zero
     require(usr.balance > 0, "Zero user balance");
     require(APY > 0, "Zero APY");
 
@@ -185,10 +169,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
    * @param _amount Amount of tokens to add to the pool.
    */
   function refillTokenPool(uint256 _amount) external onlyOwner {
-    require(
-      stakingToken.transferFrom(msg.sender, address(this), _amount),
-      "Transfer failed"
-    );
+    stakingToken.safeTransferFrom(msg.sender, address(this), _amount);
     tokenPool += _amount;
     emit TokenPoolRefilled(_amount);
   }
@@ -214,7 +195,7 @@ contract PaybackStaking is ReentrancyGuard, Ownable {
     }
 
     totalStaked -= expiredFunds;
-    require(stakingToken.transfer(owner(), expiredFunds), "Withdraw failed");
+    stakingToken.safeTransfer(owner(), expiredFunds);
     emit OwnerWithdrawn(expiredFunds);
   }
 

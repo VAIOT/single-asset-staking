@@ -33,7 +33,7 @@ async function main() {
   const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
   // Instantiate the contract
-  const contractAddress = "0x8ff0a5ddcb2842b6c9812f06ac83fc8836291bdb";
+  const contractAddress = "0x78ef6c881dfd04f97b1107937c1f50cde2872674";
   const contract = await ethers.getContractAt(
     "ContractManager",
     contractAddress,
@@ -42,40 +42,41 @@ async function main() {
 
   // Define your parameters here
   const agreementTerms = {
-    duration: "1 year",
-    finalDate: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365,
-    earlyTerminationPossible: "Yes",
-    terminationPeriod: 30,
-    supplierReimbursement: "No",
-    intellectualPropertyOwner: "Party B",
-    currency: "USD",
-    fixedAmount: 1000,
-    includeTax: "No",
-    typeOfCompensation: "Fixed",
+    duration: "for a fixed period",
+    finalDate: "03/11/2023",
+    earlyTerminationPossible: "yes",
+    terminationPeriod: "13",
+    currency: "usd",
+    typeOfCompensation: "fixed price",
+    fixedAmount: "12",
+    includeTax: "including sales tax",
+    courtJurisdiction: "Poland",
+    intellectualPropertyOwner: "buyer",
+    supplierReimbursement: "Reimbursement only after pre-approval of expenses",
   };
 
   const parties = [
     {
-      partyType: "Party A",
-      entityType: "Individual",
-      fullName: "John Doe",
-      streetName: "Baker Street",
-      streetNumber: "221B",
-      postalCode: "NW1 6XE",
-      city: "London",
-      country: "United Kingdom",
-      signatoryName: "John Doe",
+      partyType: "buyer",
+      entityType: "Private person",
+      fullName: "Szymon",
+      streetName: "Jana Kazimierza",
+      streetNumber: "51/160",
+      postalCode: "01-267",
+      city: "Warsaw",
+      country: "Poland",
+      signatoryName: "",
     },
     {
-      partyType: "Party B",
-      entityType: "Company",
-      fullName: "ACME Inc.",
-      streetName: "Fleet Street",
-      streetNumber: "10",
-      postalCode: "EC4A 2AB",
-      city: "London",
-      country: "United Kingdom",
-      signatoryName: "CEO ACME",
+      partyType: "supplier",
+      entityType: "Private person",
+      fullName: "Wiktoria Flet",
+      streetName: "Kasprzaka 3C",
+      streetNumber: "3C",
+      postalCode: "01-262",
+      city: "Warsaw",
+      country: "Poland",
+      signatoryName: "",
     },
   ];
 
@@ -90,6 +91,7 @@ async function main() {
     // Call the contract's createContract function
     const transaction = await contract.createContract(
       "0xD6D8903F2E900b176c5915A68144E4bd664aA153",
+      "06/10/2023",
       agreementTerms,
       parties,
       services
