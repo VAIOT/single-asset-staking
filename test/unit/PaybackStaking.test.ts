@@ -142,6 +142,47 @@ describe("PaybackStaking", function () {
       const userInfo = await paybackStaking.getUserInfo(player.address);
       expect(userInfo.balance).to.equal(stakedAmount);
     });
+    it("handles extremely small deposit and withdrawal amounts", async function () {
+      const tinyAmount = ethers.utils.parseUnits("1", "wei"); // Smallest possible unit
+      await mockToken.mint(deployer.address, tinyAmount);
+      await mockToken.approve(paybackStaking.address, tinyAmount);
+      await paybackStaking.refillTokenPool(tinyAmount);
+
+      await expect(paybackStaking.depositForUser(player.address, tinyAmount))
+        .to.emit(paybackStaking, "Deposited")
+        .withArgs(player.address, tinyAmount);
+
+      const userInfoBeforeWithdraw = await paybackStaking.getUserInfo(
+        player.address
+      );
+      expect(userInfoBeforeWithdraw.balance).to.equal(tinyAmount);
+
+      await expect(paybackStaking.connect(player).withdraw())
+        .to.emit(paybackStaking, "Withdrawn")
+        .withArgs(player.address, tinyAmount);
+
+      const userInfoAfterWithdraw = await paybackStaking.getUserInfo(
+        player.address
+      );
+      expect(userInfoAfterWithdraw.balance).to.equal(0);
+    });
+    it.only("allows withdrawal just before inactivity limit", async function () {
+      const depositAmount = ethers.utils.parseEther("10");
+      const stakedAmount = ethers.utils.parseEther("1");
+      const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;
+
+      await mockToken.mint(deployer.address, depositAmount);
+      await mockToken.approve(paybackStaking.address, depositAmount);
+      await paybackStaking.refillTokenPool(depositAmount);
+
+      await paybackStaking.depositForUser(player.address, stakedAmount);
+
+      // Increase time to just before inactivity limit
+      await time.increase(TIME_IN_A_YEAR * 2 - 10);
+
+      await expect(paybackStaking.connect(player).withdraw()).to.not.be
+        .reverted;
+    });
 
     it("does not allow non-owners to deposit tokens for a user", async function () {
       const depositAmount = ethers.utils.parseEther("100");
