@@ -166,7 +166,7 @@ describe("PaybackStaking", function () {
       );
       expect(userInfoAfterWithdraw.balance).to.equal(0);
     });
-    it.only("allows withdrawal just before inactivity limit", async function () {
+    it("allows withdrawal just before inactivity limit", async function () {
       const depositAmount = ethers.utils.parseEther("10");
       const stakedAmount = ethers.utils.parseEther("1");
       const TIME_IN_A_YEAR = 365 * 24 * 60 * 60;

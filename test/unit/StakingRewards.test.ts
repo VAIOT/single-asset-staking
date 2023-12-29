@@ -28,8 +28,17 @@ describe("StakingRewards", function () {
     playerTwo = accounts[2];
     playerThree = accounts[3];
     await deployments.fixture(["all"]);
-    stakingRewards = await ethers.getContract("StakingRewards");
-    mockToken = await ethers.getContract("MockToken");
+    const stakingRewardsDeployment = await deployments.get("StakingRewards");
+    const mockTokenDeployment = await deployments.get("MockToken");
+
+    stakingRewards = await ethers.getContractAt(
+      "StakingRewards",
+      stakingRewardsDeployment.address
+    );
+    mockToken = await ethers.getContractAt(
+      "MockToken",
+      mockTokenDeployment.address
+    );
     stakingPlayer = stakingRewards.connect(player);
     stakingPlayerTwo = stakingRewards.connect(playerTwo);
     stakingPlayerThree = stakingRewards.connect(playerThree);
