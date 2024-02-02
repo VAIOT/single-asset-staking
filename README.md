@@ -1,41 +1,64 @@
+<div align="center">
+    <img src="assets/vaiotLogo.svg" alt="VAIOT Logo" width="400"/>
+</div>
+
+</br>
+</br>
+</br>
+
 # VAIOT Single Asset Staking contract repo
 
-This repo is for VAIOT's official single asset staking smart contract.
+Welcome to the official repository for VAIOT's Single Asset Staking Smart Contract. This repository is dedicated to the development and maintenance of the staking contract using the Hardhat development environment, tailored for the Ethereum ecosystem.
 
-This is a hardhat repository. Before doing anything run
+## Installation
 
-```bash
-yarn install
-```
-
-to install all the dependencies.
-
-In order to properly run this project you must fill out .env file with the following variables:
+Begin by cloning the repository and installing the necessary dependencies:
 
 ```bash
-MUMBAI_RPC_URL= // the rpc url for the mumbai testnet
-GOERLI_RPC_URL= // the rpc url for the goerli testnet
-PRIVATE_KEY= // private key of the account deploying the contracts
-COINMARKETCAP_API_KEY= // coinmarketcap api key
-POLYGONSCAN_API_KEY= // polygonscan api key
-REPORT_GAS= // true or false
-ETHERSCAN_API_KEY= // etherscan api key
+git clone https://github.com/VAIOT/single-asset-staking.git
+cd single-asset-staking
+npm install
 ```
 
-To deploy the smart contract locally you need to write:
+## Configuration
+
+To properly configure the project, create a .env file in the root directory and include the following required variables:
 
 ```bash
-yarn hardhat deploy
+MUMBAI_RPC_URL= # RPC URL for the Mumbai testnet
+GOERLI_RPC_URL= # RPC URL for the Goerli testnet
+PRIVATE_KEY= # Private key for contract deployment
+COINMARKETCAP_API_KEY= # CoinMarketCap API key
+POLYGONSCAN_API_KEY= # PolygonScan API key
+REPORT_GAS= # true or false
+ETHERSCAN_API_KEY= # Etherscan API key
+
 ```
 
-Or if you wish to deploy to the mumbai testnet you must write:
+## Deployment
+
+Deploy the smart contract either locally or on the Mumbai testnet using the Hardhat tool.
+
+### Local Deployment
 
 ```bash
-yarn hardhat deploy --network mumbai
+npx hardhat deploy
 ```
 
-To run unit tests write:
+### Mumbai Testnet Deployment
 
 ```bash
-yarn hardhat test
+npx hardhat deploy --network mumbai
 ```
+
+## Testing
+
+Run the unit tests to ensure code reliability:
+
+```bash
+npx hardhat test
+```
+
+## Contributing
+
+Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
