@@ -4,7 +4,6 @@
 
 </br>
 </br>
-</br>
 
 # VAIOT Single Asset Staking contract repo
 
@@ -34,6 +33,18 @@ REPORT_GAS= # true or false
 ETHERSCAN_API_KEY= # Etherscan API key
 
 ```
+
+## Smart Contract Overview
+
+The StakingRewards contract allows users to stake ERC20 tokens and earn rewards. Key features include:
+
+<ul>
+    <li>Non-reentrancy for secure interactions.</li>
+    <li>Adjustable staking and reward parameters.</li>
+    <li>Automatic reward calculations based on the amount of users staking.</li>
+    <li>Immediate or delayed withdrawal options with a fee or grace period, respectively.</li>
+</ul>
+Refer to the source code for detailed information on each function.
 
 ## Deployment
 
