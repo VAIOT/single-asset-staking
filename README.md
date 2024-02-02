@@ -5,7 +5,7 @@
 </br>
 </br>
 
-# VAIOT Single Asset Staking contract repo
+# VAIOT Single Asset Staking Contract
 
 Welcome to the official repository for VAIOT's Single Asset Staking Smart Contract. This repository is dedicated to the development and maintenance of the staking contract using the Hardhat development environment, tailored for the Ethereum ecosystem.
 
